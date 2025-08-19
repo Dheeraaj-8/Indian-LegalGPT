@@ -1,0 +1,144 @@
+.voice-recorder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.voice-recorder button {
+  background: var(--button-bg);
+  color: var(--button-fg);
+  border: 1px solid var(--button-border);
+  border-radius: 50px;
+  padding: 0.875rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 140px;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.voice-recorder button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.voice-recorder button:hover {
+  background: var(--accent);
+  color: var(--button-fg);
+  border-color: var(--accent);
+}
+
+.voice-recorder button:hover::before {
+  left: 100%;
+}
+
+.voice-recorder button:active {
+  transform: translateY(0);
+}
+
+.voice-recorder button.recording {
+  background: var(--accent);
+  color: var(--background);
+  border-color: var(--accent);
+  animation: pulse 1.5s infinite;
+}
+
+.voice-recorder button i {
+  font-size: 1rem;
+}
+
+.voice-recorder .status-message {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--foreground);
+  text-align: center;
+  min-height: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s;
+}
+
+.voice-recorder .status-message.success {
+  color: var(--accent);
+}
+
+.voice-recorder .status-message.error {
+  color: #ef4444;
+}
+
+.voice-recorder .status-message.loading {
+  color: var(--accent);
+}
+
+.voice-recorder .status-message i {
+  font-size: 0.75rem;
+}
+
+/* Recording animation */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: var(--shadow);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px var(--accent);
+  }
+}
+
+/* Wave animation for recording */
+.recording-wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 0.5rem;
+}
+
+.wave-bar {
+  width: 3px;
+  height: 12px;
+  background: var(--button-fg);
+  border-radius: 2px;
+  animation: wave 1.2s infinite ease-in-out;
+}
+
+.wave-bar:nth-child(1) { animation-delay: -0.4s; }
+.wave-bar:nth-child(2) { animation-delay: -0.2s; }
+.wave-bar:nth-child(3) { animation-delay: 0s; }
+.wave-bar:nth-child(4) { animation-delay: -0.2s; }
+.wave-bar:nth-child(5) { animation-delay: -0.4s; }
+
+@keyframes wave {
+  0%, 40%, 100% {
+    transform: scaleY(0.4);
+  }
+  20% {
+    transform: scaleY(1);
+  }
+}
+
+@media (max-width: 768px) {
+  .voice-recorder button {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.875rem;
+    min-width: 120px;
+  }
+  .voice-recorder .status-message {
+    font-size: 0.8rem;
+  }
+}

@@ -1,0 +1,198 @@
+.upload-document {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-button {
+  background: var(--button-bg);
+  color: var(--button-fg);
+  border: 1px solid var(--button-border);
+  border-radius: 50px;
+  padding: 0.875rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 180px;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.upload-button:hover {
+  background: var(--accent);
+  color: var(--button-fg);
+  border-color: var(--accent);
+}
+
+.upload-button:hover::before {
+  left: 100%;
+}
+
+.upload-button:active {
+  transform: translateY(0);
+}
+
+.upload-button i {
+  font-size: 1rem;
+}
+
+.upload-button.uploading {
+  background: linear-gradient(135deg, var(--accent), #232324);
+  box-shadow: var(--shadow);
+  animation: pulse 1.5s infinite;
+}
+
+.upload-button.uploading:hover {
+  box-shadow: 0 6px 20px var(--accent);
+  background: linear-gradient(135deg, var(--accent), #232324);
+}
+
+.upload-button.success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.upload-button.success:hover {
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+  background: linear-gradient(135deg, #34d399, #10b981);
+}
+
+.upload-button.error {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.upload-button.error:hover {
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+  background: linear-gradient(135deg, #f87171, #ef4444);
+}
+
+.upload-status {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--foreground);
+  text-align: center;
+  min-height: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s;
+}
+
+.upload-status.success {
+  color: var(--accent);
+}
+
+.upload-status.error {
+  color: #ef4444;
+}
+
+.upload-status.loading {
+  color: var(--accent);
+}
+
+.upload-status i {
+  font-size: 0.75rem;
+}
+
+/* Drag and drop area */
+.drag-drop-area {
+  border: 2px dashed var(--card-border);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  background: var(--card-bg);
+  color: var(--foreground);
+  transition: all 0.3s;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+
+.drag-drop-area:hover,
+.drag-drop-area.dragover {
+  border-color: var(--accent);
+  background: var(--input-bg);
+}
+
+.drag-drop-area .drag-icon {
+  font-size: 2rem;
+  color: var(--accent);
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.drag-drop-area .drag-text {
+  color: var(--foreground);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.drag-drop-area .drag-hint {
+  color: var(--secondary);
+  font-size: 0.875rem;
+}
+
+/* File info */
+.file-info {
+  background: var(--card-bg);
+  color: var(--foreground);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.file-info .file-icon {
+  font-size: 1.5rem;
+  color: var(--accent);
+}
+
+.file-info .file-details {
+  flex: 1;
+}
+
+.file-info .file-name {
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 0.25rem;
+}
+
+.file-info .file-size {
+  font-size: 0.95rem;
+  color: var(--secondary);
+}
+
+.file-info .file-remove {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.file-info .file-remove:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
