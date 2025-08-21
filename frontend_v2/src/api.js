@@ -1,18 +1,34 @@
 import axios from 'axios';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+console.log('API URL:', API_URL);
 
 export async function sendChatMessage(query) {
-  const res = await axios.post(`${API_URL}/ask`, { query });
-  return res.data.response;
+  console.log('Sending chat message to:', `${API_URL}/ask`);
+  try {
+    const res = await axios.post(`${API_URL}/ask`, { query });
+    console.log('Chat response:', res.data);
+    return res.data.response;
+  } catch (error) {
+    console.error('Chat API error:', error);
+    throw error;
+  }
 }
 
 export async function uploadDocument(file) {
-  const formData = new FormData();
-  formData.append('file', file);
-  const res = await axios.post(`${API_URL}/upload`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  });
-  return res.data.response;
+  console.log('Uploading document to:', `${API_URL}/upload`);
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await axios.post(`${API_URL}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    console.log('Upload response:', res.data);
+    return res.data.response;
+  } catch (error) {
+    console.error('Upload API error:', error);
+    throw error;
+  }
 }
 
 export async function sendVoice(audioFile) {

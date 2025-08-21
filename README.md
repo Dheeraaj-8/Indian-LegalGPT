@@ -24,7 +24,6 @@ python -m spacy download en_core_web_sm
 ### Backend Setup
 ```bash
 cd backend
-python advanced_features_setup.py
 uvicorn main:app --reload
 ```
 

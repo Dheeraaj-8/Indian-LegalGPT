@@ -25,25 +25,6 @@ const DOC_TYPE_OPTIONS = [
   'Other'
 ];
 
-const features = [
-  {
-    icon: <FaRegFileAlt size={36} color="#6366f1" />, title: 'Document Analysis', desc: 'Upload legal documents and get simplified explanations',
-    onClick: (uploadRef) => uploadRef.current && uploadRef.current.click()
-  },
-  {
-    icon: <FaMicrophone size={36} color="#6366f1" />, title: 'Voice Queries', desc: 'Speak your questions in Hindi or English',
-    onClick: (_, startVoice) => startVoice()
-  },
-  {
-    icon: <FaLightbulb size={36} color="#6366f1" />, title: 'Legal Guidance', desc: 'Get preliminary advice and next steps',
-    onClick: (_, __, setInput) => setInput('What is the procedure for filing a consumer complaint?')
-  },
-  {
-    icon: <FaSearch size={36} color="#6366f1" />, title: 'Case Analysis', desc: 'Understand if your case is worth pursuing',
-    onClick: (_, __, setInput) => setInput('Is my case strong enough to take to court?')
-  },
-];
-
 export default function AskQuestionPage() {
   const uploadRef = useRef();
   const [input, setInput] = React.useState('');
@@ -68,6 +49,49 @@ export default function AskQuestionPage() {
   const [docGenMode, setDocGenMode] = React.useState(false);
   const [docType, setDocType] = React.useState('');
   const [showDocMenu, setShowDocMenu] = React.useState(false);
+
+  // Define features inside component to access state
+  const features = [
+    {
+      icon: <FaRegFileAlt size={36} color="#6366f1" />, title: 'Document Analysis', desc: 'Upload legal documents and get simplified explanations',
+      onClick: () => {
+        // Ensure we have an active chat before uploading
+        if (!activeChatId) {
+          handleNewChat();
+          // Wait for chat to be created, then trigger upload
+          setTimeout(() => uploadRef.current && uploadRef.current.click(), 100);
+        } else {
+          uploadRef.current && uploadRef.current.click();
+        }
+      }
+    },
+    {
+      icon: <FaMicrophone size={36} color="#6366f1" />, title: 'Voice Queries', desc: 'Speak your questions in Hindi or English',
+      onClick: () => startVoice()
+    },
+    {
+      icon: <FaLightbulb size={36} color="#6366f1" />, title: 'Legal Guidance', desc: 'Get preliminary advice and next steps',
+      onClick: () => {
+        if (!activeChatId) {
+          handleNewChat();
+          setTimeout(() => setInput('What is the procedure for filing a consumer complaint?'), 100);
+        } else {
+          setInput('What is the procedure for filing a consumer complaint?');
+        }
+      }
+    },
+    {
+      icon: <FaSearch size={36} color="#6366f1" />, title: 'Case Analysis', desc: 'Understand if your case is worth pursuing',
+      onClick: () => {
+        if (!activeChatId) {
+          handleNewChat();
+          setTimeout(() => setInput('Is my case strong enough to take to court?'), 100);
+        } else {
+          setInput('Is my case strong enough to take to court?');
+        }
+      }
+    },
+  ];
 
   React.useEffect(() => {
     localStorage.setItem('chats', JSON.stringify(chats));
@@ -100,6 +124,8 @@ export default function AskQuestionPage() {
   };
 
   const appendMessage = (role, content) => {
+    if (!activeChatId) return; // Don't append if no active chat
+    
     setChats(prev => prev.map(chat =>
       chat.id === activeChatId
         ? { ...chat, messages: [...chat.messages, { role, content }] }
@@ -108,7 +134,18 @@ export default function AskQuestionPage() {
   };
 
   const handleSend = async () => {
-    if (input.trim() && activeChatId) {
+    console.log('Send triggered with input:', input);
+    if (input.trim()) {
+      // Create new chat if none exists
+      if (!activeChatId) {
+        console.log('No active chat, creating new one...');
+        handleNewChat();
+        // Wait a bit for the chat to be created
+        setTimeout(() => handleSend(), 100);
+        return;
+      }
+      
+      console.log('Sending message for chat:', activeChatId);
       appendMessage('user', input);
       const pendingInput = input;
       setInput('');
@@ -117,26 +154,59 @@ export default function AskQuestionPage() {
       try {
         let aiResponse;
         if (docGenMode) {
+          console.log('Generating document...');
           aiResponse = await generateDocument(pendingInput, docType || null);
         } else {
+          console.log('Sending chat message...');
           aiResponse = await sendChatMessage(pendingInput);
         }
+        console.log('AI response received:', aiResponse);
         appendMessage('assistant', aiResponse);
+        
+        // Update chat title if it's still "New Chat"
+        const activeChat = getActiveChat();
+        if (activeChat && activeChat.title === 'New Chat') {
+          const newTitle = generateChatTitle(pendingInput);
+          updateChatTitle(activeChatId, newTitle);
+        }
+        
         try { await textToSpeech(aiResponse); } catch {}
-      } catch {
-        appendMessage('assistant', '❌ Error contacting server.');
+      } catch (error) {
+        console.error('Error sending message:', error);
+        appendMessage('assistant', '❌ Error contacting server. Please check if the backend is running.');
       }
       setIsLoading(false);
     }
   };
 
   const handleNewChat = () => {
+    console.log('Creating new chat...');
     const newId = uuidv4();
     const newChat = { id: newId, title: 'New Chat', messages: [], createdAt: Date.now() };
+    console.log('New chat created with ID:', newId);
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newId);
     setInput('');
     setShowFeatures(true);
+    console.log('New chat activated, showFeatures set to true');
+  };
+
+  const generateChatTitle = (content) => {
+    if (!content) return 'New Chat';
+    
+    // Extract first few words for title
+    const words = content.trim().split(/\s+/);
+    if (words.length <= 3) return content.trim();
+    
+    // For longer content, take first 3-4 words
+    const title = words.slice(0, 4).join(' ');
+    return title.length > 30 ? title.substring(0, 30) + '...' : title;
+  };
+
+  const updateChatTitle = (chatId, newTitle) => {
+    setChats(prev => prev.map(chat =>
+      chat.id === chatId ? { ...chat, title: newTitle } : chat
+    ));
   };
 
   const handleSelectChat = (id) => { setActiveChatId(id); setShowFeatures(false); };
@@ -151,17 +221,42 @@ export default function AskQuestionPage() {
   };
 
   const handleFileChange = async (e) => {
-    if (e.target.files.length > 0 && activeChatId) {
+    console.log('File change triggered:', e.target.files[0]);
+    if (e.target.files.length > 0) {
+      // Create new chat if none exists
+      if (!activeChatId) {
+        console.log('No active chat, creating new one...');
+        handleNewChat();
+        // Wait for chat to be created, then trigger upload
+        setTimeout(() => handleFileChange(e), 100);
+        return;
+      }
+      
+      console.log('Processing file upload for chat:', activeChatId);
       setUploadStatus('uploading');
       setUploadedFileName(e.target.files[0].name);
       setIsLoading(true);
       try {
-        await uploadDocument(e.target.files[0]);
+        const result = await uploadDocument(e.target.files[0]);
+        console.log('Upload successful:', result);
         setUploadStatus('success');
-        appendMessage('assistant', 'Document uploaded and indexed.');
-      } catch {
+        setShowFeatures(false); // Hide feature cards after successful upload
+        
+        // Update chat title with document name
+        const docName = e.target.files[0].name.replace(/\.[^/.]+$/, ""); // Remove file extension
+        updateChatTitle(activeChatId, docName);
+        
+        // Don't add upload message to chat - just show the status display
+        // appendMessage('assistant', 'Document uploaded and indexed.');
+        
+        // Clear upload status after 5 seconds so user can see the success message
+        setTimeout(() => {
+          setUploadStatus('idle');
+        }, 5000);
+      } catch (error) {
+        console.error('Upload error:', error);
         setUploadStatus('error');
-        appendMessage('assistant', '❌ Error uploading document.');
+        appendMessage('assistant', '❌ Error uploading document. Please check if the backend is running.');
       }
       setIsLoading(false);
     }
@@ -208,9 +303,9 @@ export default function AskQuestionPage() {
               <p className="aqp-welcome-desc">Your intelligent legal companion for understanding legal documents, getting preliminary guidance, and navigating the Indian legal system. Ask questions in Hindi or English!</p>
             )}
           </div>
-          <div className={`aqp-features-row${showFeatures ? ' fade-in' : ' fade-out'}`} style={{ pointerEvents: showFeatures ? 'auto' : 'none', opacity: showFeatures ? 1 : 0 }}>
-            {showFeatures && features.map((f) => (
-              <div className="aqp-feature-card aqp-feature-clickable" key={f.title} onClick={() => f.onClick(uploadRef, startVoice, setInput)} tabIndex={0} role="button" onKeyPress={e => { if (e.key === 'Enter') f.onClick(uploadRef, startVoice, setInput); }}>
+          <div className={`aqp-features-row${(!activeChat || showFeatures) ? ' fade-in' : ' fade-out'}`} style={{ pointerEvents: (!activeChat || showFeatures) ? 'auto' : 'none', opacity: (!activeChat || showFeatures) ? 1 : 0 }}>
+            {(!activeChat || showFeatures) && features.map((f) => (
+              <div className="aqp-feature-card aqp-feature-clickable" key={f.title} onClick={() => f.onClick()} tabIndex={0} role="button" onKeyDown={e => { if (e.key === 'Enter') f.onClick(); }}>
                 <div className="aqp-feature-icon">{f.icon}</div>
                 <div className="aqp-feature-title">{f.title}</div>
                 <div className="aqp-feature-desc">{f.desc}</div>
@@ -218,11 +313,25 @@ export default function AskQuestionPage() {
             ))}
             <input type="file" ref={uploadRef} style={{ display: 'none' }} onChange={handleFileChange} />
           </div>
-          {uploadStatus === 'uploading' && (<div className="aqp-upload-status uploading">Uploading {uploadedFileName}...</div>)}
-          {uploadStatus === 'success' && (<div className="aqp-upload-status success">✅ {uploadedFileName} uploaded successfully!</div>)}
-          {uploadStatus === 'error' && (<div className="aqp-upload-status error">❌ Error uploading {uploadedFileName}.</div>)}
+          
           {(!showFeatures && activeChat) && (
             <div className="aqp-chat-messages-area">
+              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <button 
+                  onClick={() => setShowFeatures(true)} 
+                  style={{
+                    background: 'var(--primary)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  Show Features
+                </button>
+              </div>
               {activeChat.messages.map((msg, idx) => (
                 <div key={idx} className={`aqp-chat-bubble ${msg.role}`}>
                   {msg.role === 'assistant' ? (
@@ -243,9 +352,59 @@ export default function AskQuestionPage() {
             </div>
           )}
           <div className="aqp-chat-section">
-            <div className="aqp-chat-label">Chat</div>
+            {/* Document Title Display */}
+            {activeChat && activeChat.title !== 'New Chat' && (
+              <div className="aqp-document-title">
+                {activeChat.title}
+              </div>
+            )}
+            {uploadStatus === 'success' && !activeChat && (
+              <div className="aqp-document-title">
+                {uploadedFileName.replace(/\.[^/.]+$/, "")}
+              </div>
+            )}
+            
+            {/* Upload Status Display - Above Chat Input */}
+            {uploadStatus === 'uploading' && (
+              <div className="aqp-upload-status-compact uploading">
+                <div className="aqp-upload-icon-compact">📄</div>
+                <div className="aqp-upload-text-compact">
+                  <div className="aqp-upload-title-compact">Uploading...</div>
+                  <div className="aqp-upload-filename-compact">{uploadedFileName}</div>
+                </div>
+              </div>
+            )}
+            
+            {uploadStatus === 'success' && (
+              <div className="aqp-upload-status-compact success">
+                <div className="aqp-upload-icon-compact">✅</div>
+                <div className="aqp-upload-text-compact">
+                  <div className="aqp-upload-title-compact">Upload Successful!</div>
+                  <div className="aqp-upload-filename-compact">{uploadedFileName}</div>
+                </div>
+              </div>
+            )}
+            
+            {uploadStatus === 'error' && (
+              <div className="aqp-upload-status-compact error">
+                <div className="aqp-upload-icon-compact">❌</div>
+                <div className="aqp-upload-text-compact">
+                  <div className="aqp-upload-title-compact">Upload Failed</div>
+                  <div className="aqp-upload-filename-compact">{uploadedFileName}</div>
+                </div>
+              </div>
+            )}
+            
             <div className="aqp-chat-input-bar">
-              <button className="aqp-chat-btn" title="Upload" onClick={() => uploadRef.current && uploadRef.current.click()}><FaCloudUploadAlt size={20} /></button>
+              <div className="aqp-chat-label-left">Chat</div>
+              <button className="aqp-chat-btn" title="Upload" onClick={() => {
+                if (!activeChatId) {
+                  handleNewChat();
+                  setTimeout(() => uploadRef.current && uploadRef.current.click(), 100);
+                } else {
+                  uploadRef.current && uploadRef.current.click();
+                }
+              }}><FaCloudUploadAlt size={20} /></button>
               <button className={`aqp-chat-btn${recording ? ' recording' : ''}`} title="Voice" onClick={recording ? stopVoice : startVoice} style={{ backgroundColor: recording ? '#ef4444' : 'transparent', color: recording ? 'white' : 'inherit' }}><FaMicrophone size={20} /></button>
               <button className="aqp-chat-btn" title="Hindi Keyboard" onClick={() => setShowHindiKeyboard(v => !v)} style={{ fontSize: 18 }}>अ</button>
               {/* Compact Document Generator controls */}
@@ -273,7 +432,7 @@ export default function AskQuestionPage() {
                   </div>
                 )}
               </div>
-              <input className="aqp-chat-input" placeholder={docGenMode ? "Describe your case for document drafting..." : "Ask your legal question in Hindi or English..."} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSend(); }} ref={inputRef} />
+              <input className="aqp-chat-input" placeholder={docGenMode ? "Describe your case..." : "Ask your legal question..."} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSend(); }} ref={inputRef} />
               <button className="aqp-chat-btn" title="Export" onClick={() => {
                 const chat = getActiveChat();
                 if (!chat) return;

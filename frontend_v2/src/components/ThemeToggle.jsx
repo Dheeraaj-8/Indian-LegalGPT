@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 function ThemeToggle() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
@@ -8,20 +8,16 @@ function ThemeToggle() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  const toggleTheme = () => {
+    setTheme(theme === 'light' ? 'dark' : 'light');
+  };
+
   return (
     <button
-      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-      style={{
-        border: '1px solid var(--button-border)',
-        background: 'var(--button-bg)',
-        color: 'var(--button-fg)',
-        padding: '0.4rem 0.8rem',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        fontWeight: 600,
-        marginLeft: '0.5rem'
-      }}
+      className="theme-toggle-btn"
+      onClick={toggleTheme}
       title="Toggle dark mode"
+      aria-label="Toggle dark mode"
     >
       {theme === 'light' ? '🌙' : '☀️'}
     </button>

@@ -50,10 +50,6 @@
   transform: translateY(0);
 }
 
-.upload-button i {
-  font-size: 1rem;
-}
-
 .upload-button.uploading {
   background: linear-gradient(135deg, var(--accent), #232324);
   box-shadow: var(--shadow);

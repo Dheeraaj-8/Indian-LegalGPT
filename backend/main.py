@@ -26,6 +26,10 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:4173",
         "https://*.vercel.app",
         "https://*.netlify.app",
         os.getenv("FRONTEND_URL", "*")
@@ -38,6 +42,9 @@ app.add_middleware(
 
 document_analyzer = None
 multimodal_ai = None
+
+# Global document storage for RAG
+uploaded_documents = {}
 
 def get_document_analyzer():
     """Lazy load document analyzer"""
@@ -70,6 +77,10 @@ class DocumentGenerationRequest(BaseModel):
     description: str
     preferred_type: str | None = None
 
+class TextToSpeechRequest(BaseModel):
+    text: str
+    save_audio: bool = False
+
 @app.get("/")
 async def root():
     """Root endpoint with project information"""
@@ -90,21 +101,52 @@ async def root():
 
 @app.post("/ask")
 async def ask_question(request: ChatRequest):
-    """Ultra-fast legal Q&A - OPTIMIZED FOR SPEED"""
+    """Ultra-fast legal Q&A with RAG from uploaded documents"""
     try:
-       
-        response = ask_indian_legalgpt_fast(request.query)
+        print(f"Question received: {request.query}")
+        print(f"Uploaded documents count: {len(uploaded_documents)}")
+        print(f"Document keys: {list(uploaded_documents.keys())}")
         
+        # Check if we have uploaded documents to use for RAG
+        if uploaded_documents:
+            print("Using uploaded documents for RAG")
+            # Use the uploaded documents for context
+            document_context = ""
+            for filename, doc_info in uploaded_documents.items():
+                print(f"Processing document: {filename}")
+                print(f"Document content length: {len(doc_info['content'])}")
+                document_context += f"\n\nDocument: {filename}\nContent: {doc_info['content'][:2000]}...\n"
+            
+            # Create enhanced query with document context
+            enhanced_query = f"""
+            Question: {request.query}
+            
+            Context from uploaded documents:
+            {document_context}
+            
+            Please answer the question based on the uploaded documents. If the documents don't contain relevant information, provide general Indian legal guidance.
+            """
+            
+            print(f"Enhanced query length: {len(enhanced_query)}")
+            print(f"Enhanced query preview: {enhanced_query[:500]}...")
+            
+            response = ask_indian_legalgpt_fast(enhanced_query)
+        else:
+            print("No documents uploaded, using regular legal knowledge")
+            # No documents uploaded, use regular legal knowledge
+            response = ask_indian_legalgpt_fast(request.query)
+        
+        print(f"Response received: {response[:200]}...")
         
         analysis = {
             "query": request.query,
             "response": response,
             "legal_domain": _classify_legal_domain(request.query),
             "confidence_score": 0.95,
-            "sources": ["Indian Constitution", "IPC", "Civil Laws"],
+            "sources": ["Uploaded Documents"] if uploaded_documents else ["Indian Constitution", "IPC", "Civil Laws"],
             "advanced_features": [
-                "Fast response system",
-                "Legal context awareness",
+                "RAG from uploaded documents" if uploaded_documents else "General legal knowledge",
+                "Document context awareness",
                 "Multi-domain knowledge"
             ]
         }
@@ -112,41 +154,143 @@ async def ask_question(request: ChatRequest):
         return {"response": response, "analysis": analysis}
     
     except Exception as e:
+        print(f"Error in ask endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @app.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
     """Advanced document upload with analysis - OPTIMIZED"""
     try:
-       
+        # Create uploads directory
         upload_dir = Path("uploads")
         upload_dir.mkdir(exist_ok=True)
         file_path = upload_dir / file.filename
         
+        # Save file
         with open(file_path, "wb") as buffer:
             content = await file.read()
             buffer.write(content)
         
+        # Extract text based on file type
+        extracted_text = ""
+        print(f"Processing file: {file.filename}")
+        print(f"File path: {file_path}")
         
         if file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-            
             try:
                 import pytesseract
                 from PIL import Image
                 image = Image.open(file_path)
-                extracted_text = pytesseract.image_to_string(image)
-            except:
-                extracted_text = "OCR processing not available"
+                extracted_text = pytesseract.image_to_string(image, timeout=10)  # Add timeout
+                print("OCR processing completed")
+            except ImportError:
+                extracted_text = "OCR processing not available - pytesseract not installed"
+                print("OCR not available")
+            except Exception as e:
+                extracted_text = f"OCR processing error: {str(e)}"
+                print(f"OCR error: {e}")
+        elif file.filename.lower().endswith(('.pdf')):
+            print("Processing PDF file...")
+            # Try PyPDF2 first
+            try:
+                import PyPDF2
+                print("PyPDF2 imported successfully")
+                with open(file_path, 'rb') as f:
+                    pdf_reader = PyPDF2.PdfReader(f)
+                    extracted_text = ""
+                    for page_num, page in enumerate(pdf_reader.pages):
+                        page_text = page.extract_text()
+                        if page_text:
+                            extracted_text += page_text + "\n"
+                            print(f"Page {page_num + 1}: {len(page_text)} characters")
+                        else:
+                            print(f"Page {page_num + 1}: No text extracted")
+                print(f"PyPDF2 extracted {len(extracted_text)} characters")
+            except ImportError:
+                print("PyPDF2 not available")
+                extracted_text = "PDF processing not available - PyPDF2 not installed"
+            except Exception as e:
+                print(f"PyPDF2 error: {e}")
+                extracted_text = f"PDF processing error: {str(e)}"
+                
+            # If no text extracted, try alternative method
+            if not extracted_text or len(extracted_text.strip()) < 10:
+                print("Trying alternative PDF method...")
+                try:
+                    import fitz  # PyMuPDF
+                    print("PyMuPDF imported successfully")
+                    doc = fitz.open(file_path)
+                    extracted_text = ""
+                    for page_num, page in enumerate(doc):
+                        page_text = page.get_text()
+                        extracted_text += page_text + "\n"
+                        print(f"PyMuPDF Page {page_num + 1}: {len(page_text)} characters")
+                    doc.close()
+                    print(f"PyMuPDF extracted {len(extracted_text)} characters")
+                except ImportError:
+                    print("PyMuPDF not available")
+                    if not extracted_text:
+                        extracted_text = "PDF processing not available - PyMuPDF not installed"
+                except Exception as e:
+                    print(f"PyMuPDF error: {e}")
+                    if not extracted_text:
+                        extracted_text = f"Alternative PDF processing error: {str(e)}"
+                        
+            # Final fallback - try to read as text (some PDFs are actually text)
+            if not extracted_text or len(extracted_text.strip()) < 10:
+                print("Trying text fallback...")
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        fallback_text = f.read()
+                        if len(fallback_text.strip()) > 10:
+                            extracted_text = fallback_text
+                            print(f"Fallback text extraction: {len(extracted_text)} characters")
+                except Exception as e:
+                    print(f"Fallback text error: {e}")
+                            
+        elif file.filename.lower().endswith(('.docx', '.doc')):
+            try:
+                from docx import Document
+                doc = Document(file_path)
+                extracted_text = ""
+                for paragraph in doc.paragraphs:
+                    extracted_text += paragraph.text + "\n"
+            except ImportError:
+                extracted_text = "Word document processing not available - python-docx not installed"
+            except Exception as e:
+                extracted_text = f"Word document processing error: {str(e)}"
         else:
-           
-            with open(file_path, 'r', encoding='utf-8') as f:
-                extracted_text = f.read()
+            # For text files, read content
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    extracted_text = f.read()
+            except Exception:
+                extracted_text = "Text extraction for this file type is not available in this demo."
         
+        # Ensure we have some text content
+        if not extracted_text or len(extracted_text.strip()) < 10:
+            extracted_text = f"Document {file.filename} uploaded but text extraction was minimal or failed. This may be a scanned document or unsupported format."
         
-        rag_response = upload_document_to_rag_fast(str(file_path))
+        print(f"Final extracted text length: {len(extracted_text)} characters")
+        print(f"Text preview: {extracted_text[:200]}...")
         
+        # Store document content for RAG
+        uploaded_documents[file.filename] = {
+            "content": extracted_text,
+            "file_path": str(file_path),
+            "upload_time": time.time()
+        }
+        
+        print(f"Document stored in uploaded_documents. Total documents: {len(uploaded_documents)}")
+        print(f"Document keys: {list(uploaded_documents.keys())}")
+        
+        # Simple RAG response (no external API calls)
+        rag_response = f"Document {file.filename} uploaded and indexed for analysis"
+        
+        response_msg = "Document uploaded and analyzed successfully"
         return {
-            "message": "Document uploaded and analyzed successfully",
+            "message": response_msg,
+            "response": response_msg,
             "filename": file.filename,
             "extracted_text": extracted_text[:500] + "..." if len(extracted_text) > 500 else extracted_text,
             "rag_status": rag_response
@@ -219,20 +363,20 @@ async def speech_to_text_endpoint(audio_file: UploadFile = File(...), language: 
         raise HTTPException(status_code=500, detail=f"Speech-to-text error: {str(e)}")
 
 @app.post("/text-to-speech")
-async def text_to_speech_endpoint(text: str, save_audio: bool = False):
+async def text_to_speech_endpoint(payload: TextToSpeechRequest):
     """Convert text to speech with legal context awareness"""
     try:
         speech_processor = get_speech_processor()
         
-        if save_audio:
+        if payload.save_audio:
             # Save audio file
             upload_dir = Path("uploads")
             upload_dir.mkdir(exist_ok=True)
             output_path = upload_dir / f"tts_output_{int(time.time())}.wav"
-            result = speech_processor.text_to_speech(text, str(output_path))
+            result = speech_processor.text_to_speech(payload.text, str(output_path))
         else:
             # Play directly
-            result = speech_processor.text_to_speech(text)
+            result = speech_processor.text_to_speech(payload.text)
         
         return result
     
@@ -344,6 +488,22 @@ async def get_features():
             "rag_enhancement": "Enhanced RAG with legal context",
             "voice_interface": "Voice-based legal assistant",
             "legal_summary_generation": "AI-generated legal summaries"
+        }
+    }
+
+@app.get("/documents")
+async def list_documents():
+    """List all uploaded documents"""
+    return {
+        "documents": list(uploaded_documents.keys()),
+        "count": len(uploaded_documents),
+        "details": {
+            filename: {
+                "upload_time": doc_info["upload_time"],
+                "content_length": len(doc_info["content"]),
+                "preview": doc_info["content"][:200] + "..." if len(doc_info["content"]) > 200 else doc_info["content"]
+            }
+            for filename, doc_info in uploaded_documents.items()
         }
     }
 
